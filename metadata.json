@@ -1,0 +1,5 @@
+{
+  "name": "JD Scorer",
+  "description": "A Chrome Extension popup that analyzes and scores Job Description text from the currently focused input field using Google Gemini.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Successful</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 flex items-center justify-center h-screen">
+  <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center border border-slate-200">
+    <div class="mb-6 flex justify-center">
+      <div class="bg-green-100 p-3 rounded-full">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+    </div>
+    <h1 class="text-2xl font-bold text-slate-900 mb-2">Authentication Successful</h1>
+    <p class="text-slate-600 mb-8">Your account has been verified.</p>
+    
+    <div id="status" class="p-4 bg-slate-100 rounded-lg text-sm text-slate-500 font-mono break-all">
+      Connecting to extension...
+    </div>
+    
+    <p class="text-xs text-slate-400 mt-6">You can close this tab now.</p>
+  </div>
+
+  <script>
+    // IMPORTANT: Replace this with your actual Extension ID from chrome://extensions
+    // It looks like: "abcdefghijklmnopqrstuvwxyzabcdef"
+    const EXTENSION_ID = "YOUR_EXTENSION_ID_HERE";
+
+    const statusEl = document.getElementById('status');
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (!token) {
+      statusEl.innerText = "Error: No token found in URL.";
+      statusEl.classList.add("text-red-500", "bg-red-50");
+    } else {
+      // Send token to Chrome Extension
+      if (chrome && chrome.runtime) {
+        chrome.runtime.sendMessage(EXTENSION_ID, { type: 'AUTH_SUCCESS', token: token }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(chrome.runtime.lastError);
+            statusEl.innerText = "Error connecting to extension. Is the ID correct?";
+            statusEl.classList.add("text-red-500", "bg-red-50");
+          } else if (response && response.success) {
+            statusEl.innerText = "Success! You can now use the JD Scorer extension.";
+            statusEl.classList.remove("text-slate-500", "bg-slate-100");
+            statusEl.classList.add("text-green-700", "bg-green-50", "font-bold");
+          } else {
+            statusEl.innerText = "Unknown error occurred.";
+          }
+        });
+      } else {
+        statusEl.innerText = "Chrome runtime not found. Are you in Chrome?";
+      }
+    }
+  </script>
+</body>
+</html>
