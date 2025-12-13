@@ -1,33 +1,20 @@
 {
   "manifest_version": 3,
   "name": "JD Scorer",
-  "version": "1.0",
-  "description": "Analyze and score Job Descriptions from focused input fields.",
+  "version": "1.0.0",
+  "description": "Analyze job descriptions for readability and bias in real-time.",
   "permissions": [
     "activeTab",
-    "scripting",
-    "storage"
+    "scripting"
   ],
-  "host_permissions": [
-    "https://your-vercel-domain.vercel.app/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "externally_connectable": {
-    "matches": [
-      "https://your-vercel-domain.vercel.app/*",
-      "http://localhost:3000/*" 
-    ]
-  },
   "action": {
     "default_popup": "index.html",
-    "default_title": "Analyze JD"
+    "default_title": "JD Scorer - Analyze Job Description"
   },
   "icons": {
-    "16": "https://picsum.photos/16/16",
-    "48": "https://picsum.photos/48/48",
-    "128": "https://picsum.photos/128/128"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

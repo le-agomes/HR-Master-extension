@@ -1,22 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { analyzeJD } from './utils/analysis';
 import { AnalysisResult } from './types';
-import { Loader2, Zap, AlertTriangle, FileText, CheckCircle2, RotateCcw, Lock, LogIn, User } from 'lucide-react';
-
-const API_BASE_URL = "https://your-vercel-domain.vercel.app";
+import { Loader2, Zap, AlertTriangle, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [initializing, setInitializing] = useState(true);
   const [text, setText] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  
-  // Auth & Usage States
-  const [checkingUsage, setCheckingUsage] = useState(false);
-  const [limitReached, setLimitReached] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Inject script and get text on mount
   useEffect(() => {
@@ -70,118 +62,27 @@ const App: React.FC = () => {
     init();
   }, []);
 
-  const checkProAccess = async (): Promise<'ALLOW' | 'LIMIT_REACHED' | 'UNAUTHORIZED' | 'ERROR'> => {
-    if (typeof chrome === 'undefined' || !chrome.storage) {
-      // Dev mode fallback
-      return 'ALLOW';
-    }
-
-    try {
-      const data = await chrome.storage.local.get(['jwt']);
-      const token = data.jwt;
-
-      if (!token) return 'UNAUTHORIZED';
-
-      const res = await fetch(`${API_BASE_URL}/api/check-usage`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (res.status === 401) return 'UNAUTHORIZED';
-      
-      const json = await res.json();
-      if (json.status === 'ALLOW') return 'ALLOW';
-      if (json.status === 'LIMIT_REACHED') return 'LIMIT_REACHED';
-      
-      return 'ERROR';
-    } catch (e) {
-      console.error("API Check Error", e);
-      // In a real app, you might fail open or closed. Failing open for now if API is down.
-      // Or handle specific network errors. 
-      // For this specific prompt, we handle API logic strictly.
-      return 'ERROR';
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    setError(null);
-
-    try {
-      if (typeof chrome === 'undefined') {
-        // Dev Mock
-        setNeedsLogin(false);
-        setIsLoggingIn(false);
-        return;
-      }
-
-      const res = await fetch(`${API_BASE_URL}/api/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      });
-
-      const json = await res.json();
-
-      if (res.ok && json.token) {
-        await chrome.storage.local.set({ jwt: json.token });
-        setNeedsLogin(false);
-        // Automatically trigger analysis after login
-        handleAnalyze();
-      } else {
-        setError(json.error || "Login failed");
-      }
-    } catch (err) {
-      setError("Network error during login");
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleAnalyze = async () => {
+  const handleAnalyze = () => {
     if (!text.trim()) {
       setError("Please enter some text to analyze.");
       return;
     }
-    
+
     setError(null);
-    setCheckingUsage(true);
+    setAnalyzing(true);
 
-    const status = await checkProAccess();
-    setCheckingUsage(false);
-
-    if (status === 'UNAUTHORIZED') {
-      setNeedsLogin(true);
-      return;
-    }
-
-    if (status === 'LIMIT_REACHED') {
-      setLimitReached(true);
-      return;
-    }
-
-    if (status === 'ERROR') {
-      setError("Unable to verify usage limits. Please try again.");
-      return;
-    }
-
-    // Status is ALLOW
-    const analysis = analyzeJD(text);
-    setResult(analysis);
+    // Small delay for UX - makes it feel more substantial
+    setTimeout(() => {
+      const analysis = analyzeJD(text);
+      setResult(analysis);
+      setAnalyzing(false);
+    }, 300);
   };
 
   const handleReset = () => {
     setResult(null);
     setError(null);
-    setLimitReached(false);
-    setNeedsLogin(false);
   };
-
-  // -- RENDER STATES --
 
   if (initializing) {
     return (
@@ -192,90 +93,7 @@ const App: React.FC = () => {
     );
   }
 
-  // 1. Paywall View
-  if (limitReached) {
-    return (
-      <div className="flex flex-col h-full w-full bg-slate-50">
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-2">
-           <Lock className="w-5 h-5 text-indigo-600" />
-           <h1 className="text-xl font-bold text-slate-800">Limit Reached</h1>
-        </header>
-        <main className="flex-1 p-8 flex flex-col items-center justify-center text-center">
-          <div className="bg-amber-100 p-4 rounded-full mb-6">
-            <Lock className="w-12 h-12 text-amber-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Unlock Unlimited Access</h2>
-          <p className="text-slate-600 mb-8">
-            You've used all your free analysis credits for today. Upgrade to Pro to continue analyzing job descriptions.
-          </p>
-          <button 
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md shadow-indigo-200"
-            onClick={() => window.open('https://your-vercel-domain.vercel.app/pricing', '_blank')}
-          >
-            Upgrade to Pro
-          </button>
-          <button onClick={handleReset} className="mt-4 text-sm text-slate-500 hover:text-slate-800">
-            Back to Home
-          </button>
-        </main>
-      </div>
-    );
-  }
-
-  // 2. Login View
-  if (needsLogin) {
-    return (
-      <div className="flex flex-col h-full w-full bg-slate-50">
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-2">
-           <User className="w-5 h-5 text-indigo-600" />
-           <h1 className="text-xl font-bold text-slate-800">Login Required</h1>
-        </header>
-        <main className="flex-1 p-6">
-          <p className="text-sm text-slate-600 mb-6">Please log in to your account to verify your usage limits.</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Username</label>
-              <input 
-                type="text" 
-                required
-                className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-200 outline-none"
-                value={loginForm.username}
-                onChange={e => setLoginForm({...loginForm, username: e.target.value})}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Password</label>
-              <input 
-                type="password" 
-                required
-                className="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-200 outline-none"
-                value={loginForm.password}
-                onChange={e => setLoginForm({...loginForm, password: e.target.value})}
-              />
-            </div>
-            {error && <div className="text-xs text-red-600 font-medium">{error}</div>}
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md shadow-indigo-200 flex justify-center items-center gap-2"
-            >
-              {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-              Log In
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setNeedsLogin(false)} 
-              className="w-full text-sm text-slate-500 mt-2 hover:text-slate-700"
-            >
-              Cancel
-            </button>
-          </form>
-        </main>
-      </div>
-    );
-  }
-
-  // 3. Main Interface
+  // Main Interface
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
       {/* Header */}
@@ -377,15 +195,15 @@ const App: React.FC = () => {
         <footer className="bg-white border-t border-slate-200 p-4 sticky bottom-0 z-10">
           <button
             onClick={handleAnalyze}
-            disabled={checkingUsage}
+            disabled={analyzing}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 px-4 rounded-xl transition-all active:scale-[0.98] shadow-md shadow-indigo-200 flex items-center justify-center gap-2"
           >
-            {checkingUsage ? (
+            {analyzing ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <Zap className="w-5 h-5" />
             )}
-            {checkingUsage ? 'Checking Limits...' : 'Analyze Description'}
+            {analyzing ? 'Analyzing...' : 'Analyze Description'}
           </button>
         </footer>
       )}
