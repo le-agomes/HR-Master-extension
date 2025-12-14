@@ -86,7 +86,9 @@ export const analyzeJD = (text: string): AnalysisResult => {
   Object.values(BIAS_CATEGORIES).forEach(categoryDef => {
     const foundWords: string[] = [];
     categoryDef.words.forEach(biasWord => {
-      if (lowerText.includes(biasWord.toLowerCase())) {
+      // Use word boundary regex to avoid false positives (e.g., "he" in "the")
+      const pattern = new RegExp(`\\b${biasWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (pattern.test(lowerText)) {
         foundWords.push(biasWord);
         if (!allBiasWords.includes(biasWord)) {
           allBiasWords.push(biasWord);
