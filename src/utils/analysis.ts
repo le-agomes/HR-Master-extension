@@ -31,9 +31,26 @@ const BIAS_CATEGORIES = {
 
 // AI-generated text indicators
 const AI_INDICATORS = {
-  overusedWords: ['leverage', 'utilize', 'facilitate', 'optimize', 'streamline', 'synergy', 'paradigm', 'robust', 'cutting-edge', 'state-of-the-art', 'best-in-class', 'world-class'],
-  genericPhrases: ['fast-paced environment', 'team player', 'self-starter', 'go-getter', 'thinks outside the box', 'hit the ground running', 'wear many hats'],
-  excessiveFormal: ['furthermore', 'moreover', 'notwithstanding', 'aforementioned', 'henceforth'],
+  // Corporate buzzwords AI loves
+  buzzwords: ['leverage', 'utilize', 'facilitate', 'optimize', 'streamline', 'synergy', 'paradigm', 'robust', 'cutting-edge', 'state-of-the-art', 'best-in-class', 'world-class', 'innovative', 'dynamic', 'proactive', 'strategic', 'collaborative'],
+
+  // Generic clichés
+  genericPhrases: ['fast-paced environment', 'team player', 'self-starter', 'go-getter', 'thinks outside the box', 'hit the ground running', 'wear many hats', 'driven individual', 'results-oriented', 'detail-oriented', 'highly motivated'],
+
+  // Excessive formality
+  formalWords: ['furthermore', 'moreover', 'notwithstanding', 'aforementioned', 'henceforth', 'whereby', 'herein', 'thereof'],
+
+  // Superlatives AI overuses
+  superlatives: ['excellent', 'outstanding', 'exceptional', 'premier', 'leading', 'top-tier', 'world-class', 'best-in-class', 'unparalleled', 'premier'],
+
+  // Vague descriptors
+  vagueWords: ['various', 'several', 'multiple', 'numerous', 'many', 'some', 'diverse', 'wide range'],
+
+  // AI filler phrases
+  fillerPhrases: ['we are looking for', 'we are seeking', 'the ideal candidate will', 'the successful candidate will', 'you will be responsible for', 'in this role you will'],
+
+  // Passive voice indicators (AI loves passive voice)
+  passiveIndicators: ['will be responsible', 'is required', 'are expected', 'will be expected', 'is preferred', 'are needed'],
 };
 
 export const analyzeJD = (text: string): AnalysisResult => {
@@ -122,67 +139,124 @@ export const analyzeJD = (text: string): AnalysisResult => {
   let aiScore = 0;
   const aiReasons: string[] = [];
 
-  // Check for overused AI words
-  const overusedCount = AI_INDICATORS.overusedWords.filter(word =>
+  // 1. Check for corporate buzzwords (AI loves these)
+  const buzzwordCount = AI_INDICATORS.buzzwords.filter(word =>
     lowerText.includes(word.toLowerCase())
   ).length;
-  if (overusedCount >= 3) {
-    aiScore += 25;
-    aiReasons.push(`${overusedCount} corporate buzzwords`);
+  if (buzzwordCount >= 2) {
+    const points = Math.min(30, buzzwordCount * 5);
+    aiScore += points;
+    aiReasons.push(`${buzzwordCount} corporate buzzwords`);
   }
 
-  // Check for generic phrases
+  // 2. Check for generic cliché phrases
   const genericCount = AI_INDICATORS.genericPhrases.filter(phrase =>
     lowerText.includes(phrase.toLowerCase())
   ).length;
-  if (genericCount >= 2) {
-    aiScore += 20;
-    aiReasons.push(`${genericCount} generic phrases`);
+  if (genericCount >= 1) {
+    const points = Math.min(25, genericCount * 8);
+    aiScore += points;
+    aiReasons.push(`${genericCount} generic clichés`);
   }
 
-  // Check for excessive formality
-  const formalCount = AI_INDICATORS.excessiveFormal.filter(word =>
-    lowerText.includes(word.toLowerCase())
+  // 3. Check for superlatives overuse
+  const superlativeCount = AI_INDICATORS.superlatives.filter(word =>
+    new RegExp(`\\b${word}\\b`, 'i').test(lowerText)
   ).length;
-  if (formalCount >= 2) {
+  if (superlativeCount >= 2) {
     aiScore += 15;
-    aiReasons.push('overly formal language');
+    aiReasons.push(`${superlativeCount} superlatives`);
   }
 
-  // Check for repetitive sentence structure
-  const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
-  const avgSentenceLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
-  const variance = sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgSentenceLength, 2), 0) / sentenceLengths.length;
-  if (variance < 10 && sentenceLengths.length > 3) {
-    aiScore += 15;
-    aiReasons.push('repetitive sentence structure');
-  }
-
-  // Check for lack of specifics (too many vague words)
-  const vagueWords = ['various', 'several', 'multiple', 'numerous', 'many', 'some'];
-  const vagueCount = vagueWords.filter(word => lowerText.includes(word)).length;
-  if (vagueCount >= 3) {
-    aiScore += 15;
+  // 4. Check for vague language (AI lacks specifics)
+  const vagueCount = AI_INDICATORS.vagueWords.filter(word =>
+    lowerText.includes(word)
+  ).length;
+  if (vagueCount >= 2) {
+    aiScore += 10;
     aiReasons.push('vague descriptions');
   }
 
-  // Check for perfect grammar (no contractions, very formal)
-  const hasContractions = /\b(don't|won't|can't|we'll|you'll|it's|we're|you're)\b/i.test(lowerText);
-  if (!hasContractions && wordCount > 100) {
+  // 5. Check for AI filler phrases
+  const fillerCount = AI_INDICATORS.fillerPhrases.filter(phrase =>
+    lowerText.includes(phrase.toLowerCase())
+  ).length;
+  if (fillerCount >= 2) {
+    aiScore += 15;
+    aiReasons.push('repetitive filler phrases');
+  }
+
+  // 6. Check for passive voice overuse
+  const passiveCount = AI_INDICATORS.passiveIndicators.filter(phrase =>
+    lowerText.includes(phrase.toLowerCase())
+  ).length;
+  if (passiveCount >= 2) {
     aiScore += 10;
+    aiReasons.push('excessive passive voice');
+  }
+
+  // 7. Check for excessive formality
+  const formalCount = AI_INDICATORS.formalWords.filter(word =>
+    lowerText.includes(word.toLowerCase())
+  ).length;
+  if (formalCount >= 1) {
+    aiScore += 10;
+    aiReasons.push('overly formal language');
+  }
+
+  // 8. Check for repetitive sentence structure
+  const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
+  if (sentenceLengths.length > 3) {
+    const avgSentenceLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
+    const variance = sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgSentenceLength, 2), 0) / sentenceLengths.length;
+    if (variance < 15) {
+      aiScore += 12;
+      aiReasons.push('uniform sentence structure');
+    }
+  }
+
+  // 9. Check for lack of numbers/specifics (humans include metrics)
+  const hasNumbers = /\d+/.test(cleanText);
+  const numberCount = (cleanText.match(/\d+/g) || []).length;
+  if (!hasNumbers || numberCount < 2) {
+    aiScore += 8;
+    aiReasons.push('lacks specific metrics');
+  }
+
+  // 10. Check for perfect grammar (no contractions = too formal)
+  const hasContractions = /\b(don't|won't|can't|we'll|you'll|it's|we're|you're|they're|i'm)\b/i.test(lowerText);
+  if (!hasContractions && wordCount > 100) {
+    aiScore += 8;
     aiReasons.push('no casual language');
   }
 
-  aiScore = Math.min(100, aiScore);
-  const isLikelyAI = aiScore >= 50;
+  // 11. Check for bullet point overuse (AI loves lists)
+  const bulletPoints = (cleanText.match(/^[\s]*[-•*]\s/gm) || []).length;
+  if (bulletPoints > 10) {
+    aiScore += 5;
+    aiReasons.push('excessive bullet points');
+  }
 
-  let aiDetectionReason = aiScore < 30
-    ? 'Appears human-written with personal touch'
-    : aiScore < 50
-    ? 'Some AI-like patterns detected'
-    : aiScore < 70
-    ? 'Likely AI-generated with generic language'
-    : 'Very likely AI-generated - lacks authenticity';
+  // 12. Check for lack of company-specific details
+  const hasCompanyName = /\b(we|our company|our team)\b/i.test(lowerText);
+  const hasLocation = /\b(office|location|remote|hybrid|onsite|city|state)\b/i.test(lowerText);
+  if (!hasCompanyName && !hasLocation && wordCount > 150) {
+    aiScore += 5;
+    aiReasons.push('generic company description');
+  }
+
+  aiScore = Math.min(100, aiScore);
+  const isLikelyAI = aiScore >= 45; // Lowered threshold from 50
+
+  let aiDetectionReason = aiScore < 25
+    ? 'Appears authentically human-written'
+    : aiScore < 45
+    ? 'Some AI patterns detected, likely human-edited'
+    : aiScore < 65
+    ? 'Likely AI-generated with generic corporate language'
+    : aiScore < 80
+    ? 'Very likely AI-generated - lacks authenticity'
+    : 'Almost certainly AI-generated - pure corporate template';
 
   if (aiReasons.length > 0) {
     aiDetectionReason += ': ' + aiReasons.join(', ');
