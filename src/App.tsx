@@ -6,6 +6,7 @@ import { Loader2, Zap, AlertTriangle, FileText, CheckCircle2, RotateCcw } from '
 const App: React.FC = () => {
   const [initializing, setInitializing] = useState(true);
   const [text, setText] = useState<string>("");
+  const [textSource, setTextSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -24,14 +25,14 @@ const App: React.FC = () => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab.id) throw new Error("No active tab.");
 
-        const foundText = await new Promise<string>((resolve) => {
+        const foundText = await new Promise<{text: string, source?: string}>((resolve) => {
           const listener = (message: any) => {
             if (message.type === 'JD_TEXT_FOUND') {
               chrome.runtime.onMessage.removeListener(listener);
-              resolve(message.text);
+              resolve({ text: message.text, source: message.source });
             } else if (message.type === 'JD_TEXT_ERROR') {
               chrome.runtime.onMessage.removeListener(listener);
-              resolve(""); 
+              resolve({ text: "" });
               if (message.error) console.warn(message.error);
             }
           };
@@ -44,13 +45,16 @@ const App: React.FC = () => {
           }).catch((err: any) => {
             chrome.runtime.onMessage.removeListener(listener);
             console.error("Injection failed", err);
-            resolve("");
+            resolve({ text: "" });
           });
 
-          setTimeout(() => resolve(""), 1000);
+          setTimeout(() => resolve({ text: "" }), 1000);
         });
 
-        setText(foundText);
+        setText(foundText.text);
+        if (foundText.source) {
+          setTextSource(foundText.source);
+        }
       } catch (err: any) {
         console.error(err);
         setError("Could not connect to page. You can still paste text below.");
@@ -117,13 +121,20 @@ const App: React.FC = () => {
         {!result ? (
           <div className="flex flex-col h-full space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-400" />
-                Job Description Text
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-400" />
+                  Job Description Text
+                </label>
+                {textSource && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                    ✓ {textSource}
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-slate-400">{text.length} chars</span>
             </div>
-            
+
             <textarea
               className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none text-sm text-slate-700 leading-relaxed shadow-sm font-mono"
               placeholder="Paste job description here or click a field on the page..."
