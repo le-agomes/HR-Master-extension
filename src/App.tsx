@@ -125,14 +125,20 @@ const App: React.FC = () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab.id) throw new Error("No active tab.");
 
-      // Send REPLACE_TEXT message to content script
+      // Send REPLACE_TEXT message to content script with both cleanedText and suggestions
+      // Suggestions allow preserving formatting by doing smart text node replacement
       chrome.tabs.sendMessage(
         tab.id,
-        { type: 'REPLACE_TEXT', cleanedText: result.cleanedText },
+        {
+          type: 'REPLACE_TEXT',
+          cleanedText: result.cleanedText,
+          suggestions: result.suggestions
+        },
         (response) => {
           setFixing(false);
           if (response && response.success) {
-            alert(`✓ Fixed! Replacement method: ${response.method}`);
+            const preservedMsg = response.preserved ? ` (${response.preserved} preserved)` : '';
+            alert(`✓ Fixed! Method: ${response.method}${preservedMsg}`);
           } else {
             alert(`⚠ Could not replace text: ${response?.error || 'Unknown error'}`);
           }

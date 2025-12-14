@@ -219,22 +219,53 @@ let lastExtractionMethod = null;
   }
 })();
 
+// Helper function to replace text while preserving HTML structure
+function replaceTextInElement(element, replacements) {
+  // replacements is an array of {from, to} objects
+
+  // Walk through all text nodes and replace
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+
+  const textNodes = [];
+  let node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  // Replace text in each text node
+  textNodes.forEach(textNode => {
+    let text = textNode.textContent;
+    replacements.forEach(({ from, to }) => {
+      // Escape special regex characters in the 'from' string
+      const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedFrom}\\b`, 'gi');
+      text = text.replace(regex, to);
+    });
+    textNode.textContent = text;
+  });
+}
+
 // Listen for replacement requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'REPLACE_TEXT' && message.cleanedText) {
+  if (message.type === 'REPLACE_TEXT') {
     try {
       if (!lastExtractedElement) {
         sendResponse({ success: false, error: 'No element to replace' });
         return;
       }
 
-      const cleanedText = message.cleanedText;
+      const { cleanedText, suggestions } = message;
 
       // Handle different element types
       if (lastExtractionMethod === 'input-field') {
-        // For input/textarea elements
+        // For input/textarea elements (plain text only)
         if (lastExtractedElement.tagName === 'INPUT' || lastExtractedElement.tagName === 'TEXTAREA') {
-          lastExtractedElement.value = cleanedText;
+          lastExtractedElement.value = cleanedText || '';
 
           // Trigger input event for frameworks that listen to it
           lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
@@ -243,26 +274,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true, method: 'input-field' });
         }
       } else if (lastExtractionMethod === 'selection') {
-        // For selected text - replace in the DOM
+        // For selected text - replace while preserving line breaks
         const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
+        if (selection.rangeCount > 0 && cleanedText) {
           const range = selection.getRangeAt(0);
           range.deleteContents();
-          range.insertNode(document.createTextNode(cleanedText));
+
+          // Preserve line breaks
+          const lines = cleanedText.split('\n');
+          lines.forEach((line, i) => {
+            range.insertNode(document.createTextNode(line));
+            if (i < lines.length - 1) {
+              range.insertNode(document.createElement('br'));
+            }
+          });
+
           sendResponse({ success: true, method: 'selection' });
         }
       } else if (lastExtractionMethod === 'site-specific') {
-        // For site-specific elements - replace innerText
+        // For site-specific elements - preserve formatting when possible
         if (lastExtractedElement && lastExtractedElement.nodeType === Node.ELEMENT_NODE) {
-          // Check if element is contenteditable
-          if (lastExtractedElement.isContentEditable) {
+          // Check if element has HTML formatting (rich text)
+          const hasFormatting = lastExtractedElement.innerHTML !== lastExtractedElement.innerText;
+          const isEditable = lastExtractedElement.isContentEditable;
+
+          if ((hasFormatting || isEditable) && suggestions && suggestions.length > 0) {
+            // Element has formatting - preserve it by replacing only text nodes
+            const replacements = suggestions.map(s => ({
+              from: s.originalWord,
+              to: s.replacement
+            }));
+            replaceTextInElement(lastExtractedElement, replacements);
+
+            if (isEditable) {
+              lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            sendResponse({ success: true, method: 'formatted-replacement', preserved: 'HTML formatting' });
+          } else if (cleanedText) {
+            // Plain text fallback
             lastExtractedElement.innerText = cleanedText;
-            lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
-            sendResponse({ success: true, method: 'contenteditable' });
-          } else {
-            // For read-only elements, just replace the text
-            lastExtractedElement.innerText = cleanedText;
-            sendResponse({ success: true, method: 'site-specific', warning: 'Element may be read-only' });
+
+            if (isEditable) {
+              lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            sendResponse({ success: true, method: 'plain-text-replacement' });
           }
         }
       }
