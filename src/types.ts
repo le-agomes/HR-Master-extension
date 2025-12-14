@@ -7,7 +7,16 @@ declare global {
 export interface BiasCategory {
   category: string;
   words: string[];
+  replacements: string[]; // Suggested replacements for each biased word
   severity: 'low' | 'medium' | 'high';
+}
+
+export interface Suggestion {
+  type: 'bias' | 'jargon' | 'readability';
+  originalWord: string;
+  replacement: string;
+  reason: string;
+  position?: number; // Optional: position in text where found
 }
 
 export interface AnalysisResult {
@@ -21,16 +30,25 @@ export interface AnalysisResult {
   biasWordsFound: string[];
   biasCategories: BiasCategory[];
 
-  // AI Detection
-  aiDetectionScore: number; // 0-100, higher = more likely AI
-  aiDetectionReason: string;
-  isLikelyAI: boolean;
+  // Jargon Detection (renamed from AI Detection)
+  jargonScore: number; // 0-100, higher = more jargon
+  jargonReason: string;
+  isJargonHeavy: boolean;
 
   // Overall Quality
   qualityScore: number; // 0-100, higher = better
   qualityBreakdown: {
     readability: number;
     inclusivity: number;
-    authenticity: number;
+    clarity: number; // Renamed from authenticity
   };
+
+  // Actionable Suggestions
+  suggestions: Suggestion[];
+  cleanedText?: string; // Text with all fixes applied
+}
+
+export interface IgnoreList {
+  words: string[];
+  lastUpdated: number;
 }

@@ -1,61 +1,76 @@
-import { AnalysisResult, BiasCategory } from '../types';
+import { AnalysisResult, BiasCategory, Suggestion } from '../types';
 
-// Bias word categories
+// Bias word categories with suggested replacements
 const BIAS_CATEGORIES = {
   broCulture: {
     category: 'Bro Culture',
     words: ['ninja', 'rockstar', 'guru', 'hacker', 'wizard', 'superhero', 'rock star', 'crushing it', 'kill it', 'dominate', 'work hard play hard', 'hustle'],
+    replacements: ['expert', 'top performer', 'subject matter expert', 'security expert', 'expert', 'exceptional performer', 'top performer', 'excel at', 'succeed at', 'lead', 'balance work and life', 'work diligently'],
     severity: 'high' as const
   },
   gender: {
     category: 'Gender Bias',
     words: ['he', 'him', 'his', 'manpower', 'chairman', 'salesman', 'policeman', 'fireman', 'aggressive', 'assertive', 'dominant'],
+    replacements: ['they', 'them', 'their', 'workforce', 'chairperson', 'salesperson', 'police officer', 'firefighter', 'ambitious', 'confident', 'leading'],
     severity: 'high' as const
   },
   age: {
     category: 'Age Bias',
     words: ['young', 'energetic', 'digital native', 'recent graduate', 'mature', 'experienced professional'],
+    replacements: ['enthusiastic', 'motivated', 'tech-savvy', 'early-career professional', 'seasoned', 'professional with X years experience'],
     severity: 'medium' as const
   },
   ability: {
     category: 'Ability Bias',
     words: ['must stand', 'must lift', 'physically demanding', 'able-bodied', 'seeing', 'hearing'],
+    replacements: ['may require standing', 'may require lifting', 'may require physical activity', 'physically capable', 'visual abilities', 'auditory abilities'],
     severity: 'medium' as const
   },
   cultural: {
     category: 'Cultural Bias',
     words: ['native english', 'native speaker', 'cultural fit', 'english only', 'american only'],
+    replacements: ['fluent in english', 'proficient english speaker', 'values alignment', 'english proficiency required', 'eligible to work in the US'],
     severity: 'high' as const
   }
 };
 
-// AI-generated text indicators
-const AI_INDICATORS = {
-  // Corporate buzzwords AI loves
+// Jargon indicators (renamed from AI indicators)
+const JARGON_INDICATORS = {
+  // Corporate buzzwords that obscure meaning
   buzzwords: ['leverage', 'utilize', 'facilitate', 'optimize', 'streamline', 'synergy', 'paradigm', 'robust', 'cutting-edge', 'state-of-the-art', 'best-in-class', 'world-class', 'innovative', 'dynamic', 'proactive', 'strategic', 'collaborative'],
+  replacements: ['use', 'use', 'help', 'improve', 'simplify', 'cooperation', 'model', 'reliable', 'modern', 'current', 'high-quality', 'top-rated', 'new', 'active', 'forward-thinking', 'planned', 'team-oriented'],
 
   // Generic clichés
   genericPhrases: ['fast-paced environment', 'team player', 'self-starter', 'go-getter', 'thinks outside the box', 'hit the ground running', 'wear many hats', 'driven individual', 'results-oriented', 'detail-oriented', 'highly motivated'],
-
-  // Excessive formality
-  formalWords: ['furthermore', 'moreover', 'notwithstanding', 'aforementioned', 'henceforth', 'whereby', 'herein', 'thereof'],
-
-  // Superlatives AI overuses
-  superlatives: ['excellent', 'outstanding', 'exceptional', 'premier', 'leading', 'top-tier', 'world-class', 'best-in-class', 'unparalleled', 'premier'],
-
-  // Vague descriptors
-  vagueWords: ['various', 'several', 'multiple', 'numerous', 'many', 'some', 'diverse', 'wide range'],
-
-  // AI filler phrases
-  fillerPhrases: ['we are looking for', 'we are seeking', 'the ideal candidate will', 'the successful candidate will', 'you will be responsible for', 'in this role you will'],
-
-  // Passive voice indicators (AI loves passive voice)
-  passiveIndicators: ['will be responsible', 'is required', 'are expected', 'will be expected', 'is preferred', 'are needed'],
+  replacementsGeneric: ['active workplace', 'collaborative', 'independent worker', 'motivated person', 'creative thinker', 'quick to learn', 'handle multiple responsibilities', 'motivated person', 'focused on outcomes', 'attentive to details', 'self-motivated'],
 };
 
-export const analyzeJD = (text: string): AnalysisResult => {
+// Context checking helper
+function checkContext(text: string, word: string, position: number): boolean {
+  // Special cases where certain words are acceptable in context
+  const contextExceptions: { [key: string]: string[] } = {
+    'aggressive': ['goals', 'targets', 'timeline', 'growth'],
+    'young': ['company', 'startup', 'team'],
+    'energetic': ['environment', 'atmosphere', 'culture']
+  };
+
+  if (contextExceptions[word.toLowerCase()]) {
+    const afterWord = text.substring(position + word.length, position + word.length + 50).toLowerCase();
+    return contextExceptions[word.toLowerCase()].some(exception =>
+      afterWord.includes(exception)
+    );
+  }
+
+  return false;
+}
+
+export const analyzeJD = (text: string, ignoredWords: string[] = []): AnalysisResult => {
   const cleanText = text.trim();
   const lowerText = cleanText.toLowerCase();
+  const suggestions: Suggestion[] = [];
+
+  // Normalize ignored words to lowercase
+  const ignoredWordsLower = ignoredWords.map(w => w.toLowerCase());
 
   // ===== 1. BASIC STATS =====
   const words = cleanText.split(/\s+/).filter(w => w.length > 0);
@@ -87,7 +102,6 @@ export const analyzeJD = (text: string): AnalysisResult => {
   else gradeLevel = "Academic (College)";
 
   // Calculate readability score (0-100, higher is better)
-  // Optimal range is 8-12 grade level
   let readabilityQuality = 100;
   if (gradeLevelScore < 8) {
     readabilityQuality = 70 + (gradeLevelScore / 8) * 30;
@@ -96,19 +110,58 @@ export const analyzeJD = (text: string): AnalysisResult => {
     readabilityQuality = Math.max(40, 100 - (excess * 8));
   }
 
-  // ===== 3. BIAS DETECTION =====
+  // Add readability suggestions if needed
+  if (gradeLevelScore > 12) {
+    suggestions.push({
+      type: 'readability',
+      originalWord: 'Complex sentences',
+      replacement: 'Simplify sentence structure',
+      reason: `Grade level is ${gradeLevelScore.toFixed(1)} (College+). Consider shorter sentences and simpler words.`
+    });
+  }
+
+  // ===== 3. BIAS DETECTION WITH CONTEXT & REPLACEMENTS =====
   const detectedCategories: BiasCategory[] = [];
   const allBiasWords: string[] = [];
 
   Object.values(BIAS_CATEGORIES).forEach(categoryDef => {
     const foundWords: string[] = [];
-    categoryDef.words.forEach(biasWord => {
-      // Use word boundary regex to avoid false positives (e.g., "he" in "the")
-      const pattern = new RegExp(`\\b${biasWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-      if (pattern.test(lowerText)) {
-        foundWords.push(biasWord);
-        if (!allBiasWords.includes(biasWord)) {
-          allBiasWords.push(biasWord);
+    const foundReplacements: string[] = [];
+
+    categoryDef.words.forEach((biasWord, index) => {
+      // Skip if in ignore list
+      if (ignoredWordsLower.includes(biasWord.toLowerCase())) {
+        return;
+      }
+
+      // Use word boundary regex to avoid false positives
+      const pattern = new RegExp(`\\b${biasWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      let match;
+
+      while ((match = pattern.exec(lowerText)) !== null) {
+        const position = match.index;
+
+        // Context check - skip if contextually appropriate
+        if (checkContext(cleanText, biasWord, position)) {
+          continue;
+        }
+
+        if (!foundWords.includes(biasWord)) {
+          foundWords.push(biasWord);
+          foundReplacements.push(categoryDef.replacements[index] || 'neutral alternative');
+
+          if (!allBiasWords.includes(biasWord)) {
+            allBiasWords.push(biasWord);
+          }
+
+          // Add specific suggestion
+          suggestions.push({
+            type: 'bias',
+            originalWord: biasWord,
+            replacement: categoryDef.replacements[index] || 'neutral alternative',
+            reason: `"${biasWord}" may be exclusionary (${categoryDef.category})`,
+            position: position
+          });
         }
       }
     });
@@ -117,17 +170,17 @@ export const analyzeJD = (text: string): AnalysisResult => {
       detectedCategories.push({
         category: categoryDef.category,
         words: foundWords,
+        replacements: foundReplacements,
         severity: categoryDef.severity
       });
     }
   });
 
-  // Calculate inclusivity score (0-100, higher is better)
+  // Calculate inclusivity score
   const biasCount = allBiasWords.length;
   const biasWordsPerHundred = (biasCount / wordCount) * 100;
   let inclusivityScore = Math.max(0, 100 - (biasWordsPerHundred * 15));
 
-  // Penalize high-severity bias more
   detectedCategories.forEach(cat => {
     if (cat.severity === 'high') {
       inclusivityScore -= cat.words.length * 3;
@@ -135,142 +188,147 @@ export const analyzeJD = (text: string): AnalysisResult => {
   });
   inclusivityScore = Math.max(0, Math.min(100, inclusivityScore));
 
-  // ===== 4. AI DETECTION =====
-  let aiScore = 0;
-  const aiReasons: string[] = [];
+  // ===== 4. JARGON DETECTION (renamed from AI Detection) =====
+  let jargonScore = 0;
+  const jargonReasons: string[] = [];
 
-  // 1. Check for corporate buzzwords (AI loves these)
-  const buzzwordCount = AI_INDICATORS.buzzwords.filter(word =>
-    lowerText.includes(word.toLowerCase())
-  ).length;
-  if (buzzwordCount >= 2) {
-    const points = Math.min(30, buzzwordCount * 5);
-    aiScore += points;
-    aiReasons.push(`${buzzwordCount} corporate buzzwords`);
+  // 1. Check for corporate buzzwords
+  const buzzwordMatches: { word: string, replacement: string }[] = [];
+  JARGON_INDICATORS.buzzwords.forEach((word, index) => {
+    const pattern = new RegExp(`\\b${word}\\b`, 'i');
+    if (pattern.test(lowerText)) {
+      buzzwordMatches.push({
+        word: word,
+        replacement: JARGON_INDICATORS.replacements[index]
+      });
+    }
+  });
+
+  if (buzzwordMatches.length >= 2) {
+    const points = Math.min(35, buzzwordMatches.length * 6);
+    jargonScore += points;
+    jargonReasons.push(`${buzzwordMatches.length} corporate buzzwords`);
+
+    // Add suggestions for each buzzword
+    buzzwordMatches.forEach(match => {
+      suggestions.push({
+        type: 'jargon',
+        originalWord: match.word,
+        replacement: match.replacement,
+        reason: `"${match.word}" is corporate jargon - use "${match.replacement}" for clarity`
+      });
+    });
   }
 
   // 2. Check for generic cliché phrases
-  const genericCount = AI_INDICATORS.genericPhrases.filter(phrase =>
-    lowerText.includes(phrase.toLowerCase())
-  ).length;
-  if (genericCount >= 1) {
-    const points = Math.min(25, genericCount * 8);
-    aiScore += points;
-    aiReasons.push(`${genericCount} generic clichés`);
-  }
-
-  // 3. Check for superlatives overuse
-  const superlativeCount = AI_INDICATORS.superlatives.filter(word =>
-    new RegExp(`\\b${word}\\b`, 'i').test(lowerText)
-  ).length;
-  if (superlativeCount >= 2) {
-    aiScore += 15;
-    aiReasons.push(`${superlativeCount} superlatives`);
-  }
-
-  // 4. Check for vague language (AI lacks specifics)
-  const vagueCount = AI_INDICATORS.vagueWords.filter(word =>
-    lowerText.includes(word)
-  ).length;
-  if (vagueCount >= 2) {
-    aiScore += 10;
-    aiReasons.push('vague descriptions');
-  }
-
-  // 5. Check for AI filler phrases
-  const fillerCount = AI_INDICATORS.fillerPhrases.filter(phrase =>
-    lowerText.includes(phrase.toLowerCase())
-  ).length;
-  if (fillerCount >= 2) {
-    aiScore += 15;
-    aiReasons.push('repetitive filler phrases');
-  }
-
-  // 6. Check for passive voice overuse
-  const passiveCount = AI_INDICATORS.passiveIndicators.filter(phrase =>
-    lowerText.includes(phrase.toLowerCase())
-  ).length;
-  if (passiveCount >= 2) {
-    aiScore += 10;
-    aiReasons.push('excessive passive voice');
-  }
-
-  // 7. Check for excessive formality
-  const formalCount = AI_INDICATORS.formalWords.filter(word =>
-    lowerText.includes(word.toLowerCase())
-  ).length;
-  if (formalCount >= 1) {
-    aiScore += 10;
-    aiReasons.push('overly formal language');
-  }
-
-  // 8. Check for repetitive sentence structure
-  const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
-  if (sentenceLengths.length > 3) {
-    const avgSentenceLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
-    const variance = sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgSentenceLength, 2), 0) / sentenceLengths.length;
-    if (variance < 15) {
-      aiScore += 12;
-      aiReasons.push('uniform sentence structure');
+  const clicheMatches: { phrase: string, replacement: string }[] = [];
+  JARGON_INDICATORS.genericPhrases.forEach((phrase, index) => {
+    if (lowerText.includes(phrase.toLowerCase())) {
+      clicheMatches.push({
+        phrase: phrase,
+        replacement: JARGON_INDICATORS.replacementsGeneric[index]
+      });
     }
+  });
+
+  if (clicheMatches.length >= 1) {
+    const points = Math.min(30, clicheMatches.length * 10);
+    jargonScore += points;
+    jargonReasons.push(`${clicheMatches.length} generic clichés`);
+
+    clicheMatches.forEach(match => {
+      suggestions.push({
+        type: 'jargon',
+        originalWord: match.phrase,
+        replacement: match.replacement,
+        reason: `"${match.phrase}" is a cliché - be more specific: "${match.replacement}"`
+      });
+    });
   }
 
-  // 9. Check for lack of numbers/specifics (humans include metrics)
+  // 3. Check for vague language
+  const vagueWords = ['various', 'several', 'multiple', 'numerous', 'many', 'some', 'diverse', 'wide range'];
+  const vagueCount = vagueWords.filter(word => lowerText.includes(word)).length;
+  if (vagueCount >= 2) {
+    jargonScore += 15;
+    jargonReasons.push('vague language - use specific numbers');
+
+    suggestions.push({
+      type: 'jargon',
+      originalWord: 'Vague quantifiers',
+      replacement: 'Specific numbers',
+      reason: 'Replace words like "several" or "various" with exact numbers (e.g., "3-5 years")'
+    });
+  }
+
+  // 4. Check for lack of specifics
   const hasNumbers = /\d+/.test(cleanText);
   const numberCount = (cleanText.match(/\d+/g) || []).length;
   if (!hasNumbers || numberCount < 2) {
-    aiScore += 8;
-    aiReasons.push('lacks specific metrics');
+    jargonScore += 12;
+    jargonReasons.push('lacks specific metrics');
+
+    suggestions.push({
+      type: 'jargon',
+      originalWord: 'Missing metrics',
+      replacement: 'Add specific numbers',
+      reason: 'Include concrete details: years of experience, team size, salary range, etc.'
+    });
   }
 
-  // 10. Check for perfect grammar (no contractions = too formal)
-  const hasContractions = /\b(don't|won't|can't|we'll|you'll|it's|we're|you're|they're|i'm)\b/i.test(lowerText);
-  if (!hasContractions && wordCount > 100) {
-    aiScore += 8;
-    aiReasons.push('no casual language');
+  // 5. Check for excessive passive voice
+  const passiveIndicators = ['will be responsible', 'is required', 'are expected', 'will be expected', 'is preferred', 'are needed'];
+  const passiveCount = passiveIndicators.filter(phrase => lowerText.includes(phrase.toLowerCase())).length;
+  if (passiveCount >= 2) {
+    jargonScore += 8;
+    jargonReasons.push('passive voice overuse');
+
+    suggestions.push({
+      type: 'jargon',
+      originalWord: 'Passive voice',
+      replacement: 'Active voice',
+      reason: 'Use active voice: "You will..." instead of "Will be responsible for..."'
+    });
   }
 
-  // 11. Check for bullet point overuse (AI loves lists)
-  const bulletPoints = (cleanText.match(/^[\s]*[-•*]\s/gm) || []).length;
-  if (bulletPoints > 10) {
-    aiScore += 5;
-    aiReasons.push('excessive bullet points');
+  jargonScore = Math.min(100, jargonScore);
+  const isJargonHeavy = jargonScore >= 40;
+
+  let jargonReason = jargonScore < 25
+    ? 'Clear and specific language'
+    : jargonScore < 40
+    ? 'Some jargon detected - could be clearer'
+    : jargonScore < 60
+    ? 'Heavy use of jargon - lacks clarity'
+    : jargonScore < 75
+    ? 'Excessive jargon - very generic'
+    : 'Extremely jargon-heavy - template language';
+
+  if (jargonReasons.length > 0) {
+    jargonReason += ': ' + jargonReasons.join(', ');
   }
 
-  // 12. Check for lack of company-specific details
-  const hasCompanyName = /\b(we|our company|our team)\b/i.test(lowerText);
-  const hasLocation = /\b(office|location|remote|hybrid|onsite|city|state)\b/i.test(lowerText);
-  if (!hasCompanyName && !hasLocation && wordCount > 150) {
-    aiScore += 5;
-    aiReasons.push('generic company description');
-  }
-
-  aiScore = Math.min(100, aiScore);
-  const isLikelyAI = aiScore >= 45; // Lowered threshold from 50
-
-  let aiDetectionReason = aiScore < 25
-    ? 'Appears authentically human-written'
-    : aiScore < 45
-    ? 'Some AI patterns detected, likely human-edited'
-    : aiScore < 65
-    ? 'Likely AI-generated with generic corporate language'
-    : aiScore < 80
-    ? 'Very likely AI-generated - lacks authenticity'
-    : 'Almost certainly AI-generated - pure corporate template';
-
-  if (aiReasons.length > 0) {
-    aiDetectionReason += ': ' + aiReasons.join(', ');
-  }
-
-  // Authenticity score (inverse of AI score)
-  const authenticityScore = 100 - aiScore;
+  // Clarity score (inverse of jargon)
+  const clarityScore = 100 - jargonScore;
 
   // ===== 5. OVERALL QUALITY SCORE =====
   const qualityScore = Math.round(
     (readabilityQuality * 0.3) +
     (inclusivityScore * 0.4) +
-    (authenticityScore * 0.3)
+    (clarityScore * 0.3)
   );
+
+  // ===== 6. GENERATE CLEANED TEXT =====
+  let cleanedText = cleanText;
+
+  // Apply all replacements (bias + jargon)
+  suggestions.forEach(suggestion => {
+    if (suggestion.type === 'bias' || suggestion.type === 'jargon') {
+      // Use word boundary regex for accurate replacement
+      const pattern = new RegExp(`\\b${suggestion.originalWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      cleanedText = cleanedText.replace(pattern, suggestion.replacement);
+    }
+  });
 
   return {
     // Readability
@@ -283,17 +341,21 @@ export const analyzeJD = (text: string): AnalysisResult => {
     biasWordsFound: allBiasWords,
     biasCategories: detectedCategories,
 
-    // AI Detection
-    aiDetectionScore: Math.round(aiScore),
-    aiDetectionReason,
-    isLikelyAI,
+    // Jargon Detection (renamed from AI Detection)
+    jargonScore: Math.round(jargonScore),
+    jargonReason,
+    isJargonHeavy,
 
     // Overall Quality
     qualityScore,
     qualityBreakdown: {
       readability: Math.round(readabilityQuality),
       inclusivity: Math.round(inclusivityScore),
-      authenticity: Math.round(authenticityScore)
-    }
+      clarity: Math.round(clarityScore)
+    },
+
+    // Actionable Suggestions
+    suggestions,
+    cleanedText: cleanedText !== cleanText ? cleanedText : undefined
   };
 };

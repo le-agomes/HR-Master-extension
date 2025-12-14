@@ -1,3 +1,7 @@
+// Store the last extracted element for replacement
+let lastExtractedElement = null;
+let lastExtractionMethod = null;
+
 (() => {
   try {
     let text = "";
@@ -19,7 +23,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'LinkedIn' };
+            return { text: element.innerText.trim(), source: 'LinkedIn', element };
           }
         }
         return null;
@@ -39,7 +43,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'Indeed' };
+            return { text: element.innerText.trim(), source: 'Indeed', element };
           }
         }
         return null;
@@ -58,7 +62,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'Glassdoor' };
+            return { text: element.innerText.trim(), source: 'Glassdoor', element };
           }
         }
         return null;
@@ -78,7 +82,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'Greenhouse' };
+            return { text: element.innerText.trim(), source: 'Greenhouse', element };
           }
         }
         return null;
@@ -97,7 +101,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'Lever' };
+            return { text: element.innerText.trim(), source: 'Lever', element };
           }
         }
         return null;
@@ -116,7 +120,7 @@
         for (const selector of selectors) {
           const element = document.querySelector(selector);
           if (element && element.innerText.trim().length > 100) {
-            return { text: element.innerText.trim(), source: 'Workday' };
+            return { text: element.innerText.trim(), source: 'Workday', element };
           }
         }
         return null;
@@ -146,7 +150,7 @@
               // Check for common job description keywords
               const hasJobKeywords = /\b(responsibilities|requirements|qualifications|experience|skills|benefits|about (the role|this position|you)|what (you'll do|we're looking for))\b/i.test(text);
               if (hasJobKeywords) {
-                return { text, source: 'Auto-detected' };
+                return { text, source: 'Auto-detected', element };
               }
             }
           }
@@ -168,6 +172,8 @@
     if (result) {
       text = result.text;
       source = result.source;
+      lastExtractedElement = result.element;
+      lastExtractionMethod = 'site-specific';
     }
 
     // Fallback 1: Check for focused input or textarea
@@ -176,6 +182,8 @@
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
         text = el.value;
         source = 'Input field';
+        lastExtractedElement = el;
+        lastExtractionMethod = 'input-field';
       }
     }
 
@@ -185,6 +193,8 @@
       if (selection.trim().length > 0) {
         text = selection;
         source = 'Selected text';
+        lastExtractedElement = window.getSelection().getRangeAt(0).commonAncestorContainer;
+        lastExtractionMethod = 'selection';
       }
     }
 
@@ -208,3 +218,58 @@
     });
   }
 })();
+
+// Listen for replacement requests
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'REPLACE_TEXT' && message.cleanedText) {
+    try {
+      if (!lastExtractedElement) {
+        sendResponse({ success: false, error: 'No element to replace' });
+        return;
+      }
+
+      const cleanedText = message.cleanedText;
+
+      // Handle different element types
+      if (lastExtractionMethod === 'input-field') {
+        // For input/textarea elements
+        if (lastExtractedElement.tagName === 'INPUT' || lastExtractedElement.tagName === 'TEXTAREA') {
+          lastExtractedElement.value = cleanedText;
+
+          // Trigger input event for frameworks that listen to it
+          lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
+          lastExtractedElement.dispatchEvent(new Event('change', { bubbles: true }));
+
+          sendResponse({ success: true, method: 'input-field' });
+        }
+      } else if (lastExtractionMethod === 'selection') {
+        // For selected text - replace in the DOM
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(document.createTextNode(cleanedText));
+          sendResponse({ success: true, method: 'selection' });
+        }
+      } else if (lastExtractionMethod === 'site-specific') {
+        // For site-specific elements - replace innerText
+        if (lastExtractedElement && lastExtractedElement.nodeType === Node.ELEMENT_NODE) {
+          // Check if element is contenteditable
+          if (lastExtractedElement.isContentEditable) {
+            lastExtractedElement.innerText = cleanedText;
+            lastExtractedElement.dispatchEvent(new Event('input', { bubbles: true }));
+            sendResponse({ success: true, method: 'contenteditable' });
+          } else {
+            // For read-only elements, just replace the text
+            lastExtractedElement.innerText = cleanedText;
+            sendResponse({ success: true, method: 'site-specific', warning: 'Element may be read-only' });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Replacement error:', err);
+      sendResponse({ success: false, error: err.message });
+    }
+  }
+  return true; // Keep the message channel open for async response
+});

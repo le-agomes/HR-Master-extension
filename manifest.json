@@ -5,7 +5,8 @@
   "description": "Analyze job descriptions for readability and bias in real-time.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "action": {
     "default_popup": "index.html",
