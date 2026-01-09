@@ -1,17 +1,29 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background Circle -->
-  <circle cx="64" cy="64" r="64" fill="#4F46E5"/>
-  
-  <!-- Lightning Bolt (Zap) -->
-  <path d="M70 24L44 68H58L54 104L80 60H66L70 24Z" fill="white" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  
-  <!-- Optional: Add subtle gradient overlay -->
-  <circle cx="64" cy="64" r="64" fill="url(#grad)" opacity="0.2"/>
-  
+  <!-- Background with gradient -->
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#6366F1;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#4F46E5;stop-opacity:1" />
     </linearGradient>
   </defs>
+
+  <!-- Rounded square background (modern look) -->
+  <rect width="128" height="128" rx="28" fill="url(#bgGrad)"/>
+
+  <!-- Lightning Bolt (Zap) - bigger and more prominent -->
+  <path d="M72 20L42 72H60L54 108L88 56H68L72 20Z"
+        fill="#FCD34D"
+        stroke="#FBBF24"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- "AI" badge in corner to show AI-powered -->
+  <circle cx="100" cy="28" r="16" fill="#10B981"/>
+  <text x="100" y="33"
+        font-family="Arial, sans-serif"
+        font-size="12"
+        font-weight="bold"
+        fill="white"
+        text-anchor="middle">AI</text>
 </svg>
