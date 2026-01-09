@@ -338,7 +338,6 @@ export const analyzeJD = (text: string, ignoredWords: string[] = []): AnalysisRe
 
     // Bias Detection
     biasCount,
-    biasWordsFound: allBiasWords,
     biasCategories: detectedCategories,
 
     // Jargon Detection (renamed from AI Detection)

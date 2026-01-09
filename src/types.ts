@@ -12,7 +12,7 @@ export interface BiasCategory {
 }
 
 export interface Suggestion {
-  type: 'bias' | 'jargon' | 'readability';
+  type: 'bias' | 'jargon' | 'readability' | 'seo';
   originalWord: string;
   replacement: string;
   reason: string;
@@ -27,7 +27,6 @@ export interface AnalysisResult {
 
   // Bias Detection
   biasCount: number;
-  biasWordsFound: string[];
   biasCategories: BiasCategory[];
 
   // Jargon Detection (renamed from AI Detection)
@@ -46,6 +45,13 @@ export interface AnalysisResult {
   // Actionable Suggestions
   suggestions: Suggestion[];
   cleanedText?: string; // Text with all fixes applied
+
+  // SEO Optimization (for job boards)
+  seoScore?: number; // 0-100, higher = better search visibility
+  seoIssues?: string[]; // List of SEO problems found
+  seoSuggestions?: string[]; // Actionable SEO improvements
+  missingKeywords?: string[]; // Keywords that should be added
+  titleRecommendations?: string[]; // Better job title suggestions
 }
 
 export interface IgnoreList {
