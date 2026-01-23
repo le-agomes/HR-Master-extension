@@ -73,6 +73,19 @@ app.use((req, res, next) => {
 
 // ===== ROUTES =====
 
+// Root endpoint - for Railway health check
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'JD Scorer API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      analyze: '/api/analyze'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
