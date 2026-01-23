@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AnalysisResult, BiasCategory, Suggestion } from '../types';
 
 export interface AIAnalysisResult extends AnalysisResult {
@@ -8,6 +7,9 @@ export interface AIAnalysisResult extends AnalysisResult {
   missingKeywords: string[];
   titleRecommendations: string[];
 }
+
+// Backend API URL - Your deployed Railway backend
+const BACKEND_URL = 'https://hr-master-extension-production.up.railway.app';
 
 const ANALYSIS_PROMPT = `You are an expert in job description analysis, focusing on bias detection, clarity, and SEO optimization for job boards (LinkedIn, Indeed, Google Jobs).
 
@@ -88,32 +90,52 @@ Return ONLY valid JSON, no markdown, no explanations outside JSON.`;
 
 export async function analyzeWithAI(
   text: string,
-  apiKey: string,
+  apiKey: string, // Kept for backwards compatibility but not used
   ignoredWords: string[] = []
 ): Promise<AIAnalysisResult> {
-  if (!apiKey) {
-    throw new Error('API key is required. Please add your Gemini API key in Settings.');
-  }
-
   if (!text || text.trim().length < 50) {
     throw new Error('Job description is too short to analyze.');
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    // Call backend API instead of Gemini directly
+    const response = await fetch(`${BACKEND_URL}/api/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        ignoredWords: ignoredWords,
+        prompt: ANALYSIS_PROMPT
+      })
+    });
 
-    // Build the full prompt
-    const fullPrompt = `${ANALYSIS_PROMPT}
+    if (!response.ok) {
+      // Handle specific HTTP errors
+      if (response.status === 400) {
+        const error = await response.json();
+        throw new Error(error.error || 'Invalid request');
+      }
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
+      if (response.status === 503) {
+        throw new Error('Service temporarily unavailable. Please try again in a few minutes.');
+      }
+      if (response.status === 500) {
+        throw new Error('Analysis failed. Please try again.');
+      }
+      throw new Error('Network error. Please check your internet connection.');
+    }
 
-${ignoredWords.length > 0 ? `IGNORE THESE WORDS (company-specific terms): ${ignoredWords.join(', ')}\n` : ''}
+    const data = await response.json();
 
-JOB DESCRIPTION TO ANALYZE:
-${text}`;
+    if (!data.success || !data.response) {
+      throw new Error('Invalid response from server');
+    }
 
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const responseText = response.text();
+    const responseText = data.response;
 
     // Parse JSON response
     let aiResult;
@@ -171,24 +193,19 @@ ${text}`;
       titleRecommendations: aiResult.titleRecommendations || []
     };
   } catch (error: any) {
-    // Handle specific API errors
-    if (error.message?.includes('API_KEY_INVALID')) {
-      throw new Error('Invalid API key. Please check your Gemini API key in Settings.');
-    }
-    if (error.message?.includes('QUOTA_EXCEEDED')) {
-      throw new Error('API quota exceeded. Please check your Gemini usage limits.');
-    }
-    if (error.message?.includes('RATE_LIMIT')) {
-      throw new Error('Rate limit reached. Please wait a moment and try again.');
+    // Re-throw with user-friendly message
+    if (error.message) {
+      throw error;
     }
 
     console.error('AI Analysis Error:', error);
-    throw new Error(`Analysis failed: ${error.message || 'Unknown error'}`);
+    throw new Error('Network error. Please check your internet connection and try again.');
   }
 }
 
-// Helper to validate API key format
+// Helper to validate API key format (kept for backwards compatibility, but not used)
 export function isValidGeminiApiKey(apiKey: string): boolean {
-  // Gemini API keys start with "AIza" and are typically 39 characters
-  return apiKey.startsWith('AIza') && apiKey.length >= 30;
+  // No longer needed since backend handles API key
+  // But keep function to avoid breaking changes
+  return true;
 }
