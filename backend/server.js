@@ -197,7 +197,7 @@ app.use((err, req, res, next) => {
 
 // ===== START SERVER =====
 
-app.listen(PORT, '0.0.0.0' () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('🚀 JD Scorer Backend API');
   console.log('========================');
