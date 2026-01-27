@@ -10,7 +10,7 @@ export interface AIAnalysisResult extends AnalysisResult {
 
 // Backend API URL - Your deployed Railway backend
 // Use environment variable if available, fallback to production URL
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://hr-master-extension-production.up.railway.app';
+const BACKEND_URL = 'https://hr-master-extension-production.up.railway.app';
 
 const ANALYSIS_PROMPT = `You are an expert in job description analysis, focusing on bias detection, clarity, and SEO optimization for job boards (LinkedIn, Indeed, Google Jobs).
 
